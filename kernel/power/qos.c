@@ -107,40 +107,12 @@ static struct pm_qos_object network_throughput_pm_qos = {
 	.name = "network_throughput",
 };
 
-static BLOCKING_NOTIFIER_HEAD(min_online_cpus_notifier);
-static struct pm_qos_constraints min_online_cpus_constraints = {
-	.list = PLIST_HEAD_INIT(min_online_cpus_constraints.list),
-	.target_value = PM_QOS_MIN_ONLINE_CPUS_DEFAULT_VALUE,
-	.default_value = PM_QOS_MIN_ONLINE_CPUS_DEFAULT_VALUE,
-	.type = PM_QOS_MAX,
-	.notifiers = &min_online_cpus_notifier,
-};
-static struct pm_qos_object min_online_cpus_pm_qos = {
-	.constraints = &min_online_cpus_constraints,
-	.name = "min_online_cpus",
-};
-
-
-static BLOCKING_NOTIFIER_HEAD(max_online_cpus_notifier);
-static struct pm_qos_constraints max_online_cpus_constraints = {
-	.list = PLIST_HEAD_INIT(max_online_cpus_constraints.list),
-	.target_value = PM_QOS_MAX_ONLINE_CPUS_DEFAULT_VALUE,
-	.default_value = PM_QOS_MAX_ONLINE_CPUS_DEFAULT_VALUE,
-	.type = PM_QOS_MIN,
-	.notifiers = &max_online_cpus_notifier,
-};
-static struct pm_qos_object max_online_cpus_pm_qos = {
-	.constraints = &max_online_cpus_constraints,
-	.name = "max_online_cpus",
-};
 
 static struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
 	&network_lat_pm_qos,
-	&network_throughput_pm_qos,
-	&min_online_cpus_pm_qos,
-	&max_online_cpus_pm_qos
+	&network_throughput_pm_qos
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
@@ -274,7 +246,11 @@ int pm_qos_update_target(struct pm_qos_constraints *c,
 
 	spin_unlock_irqrestore(&pm_qos_lock, flags);
 
-	if (prev_value != curr_value) {
+	/*
+	 * if cpu mask bits are set, call the notifier call chain
+	 * to update the new qos restriction for the cores
+	 */
+	if (!cpumask_empty(&cpus)) {
 		blocking_notifier_call_chain(c->notifiers,
 					     (unsigned long)curr_value,
 					     &cpus);
@@ -610,16 +586,6 @@ void pm_qos_remove_request(struct pm_qos_request *req)
 	}
 
 	cancel_delayed_work_sync(&req->work);
-
-#ifdef CONFIG_SMP
-	if (req->type == PM_QOS_REQ_AFFINE_IRQ) {
-		int ret = 0;
-		/* Get the current affinity */
-		ret = irq_release_affinity_notifier(&req->irq_notify);
-		if (ret)
-			WARN(1, "IRQ affinity notify set failed\n");
-	}
-#endif
 
 	pm_qos_update_target(pm_qos_array[req->pm_qos_class]->constraints,
 			     req, PM_QOS_REMOVE_REQ,

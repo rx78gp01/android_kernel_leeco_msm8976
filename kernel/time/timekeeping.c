@@ -166,8 +166,6 @@ static inline s64 timekeeping_get_ns(struct timekeeper *tk)
 
 	/* read clocksource: */
 	clock = tk->clock;
-	if (unlikely(clock == NULL))
-		return 0;
 	cycle_now = clock->read(clock);
 
 	/* calculate the delta since the last update_wall_time: */
@@ -318,18 +316,6 @@ int __getnstimeofday(struct timespec *ts)
 	return 0;
 }
 EXPORT_SYMBOL(__getnstimeofday);
-void getnstimeofday_nolock(struct timespec *ts)
-{
-	s64 nsecs;
-
-	*ts =  tk_xtime(&timekeeper);
-	nsecs = timekeeping_get_ns(&timekeeper);
-
-	/* If arch requires, add in gettimeoffset() */
-	nsecs += get_arch_timeoffset();
-
-	timespec_add_ns(ts, nsecs);
-}
 
 /**
  * getnstimeofday - Returns the time of day in a timespec.
@@ -500,18 +486,13 @@ EXPORT_SYMBOL(do_gettimeofday);
  *
  * Sets the time of day to the new time and update NTP and notify hrtimers
  */
-extern int utc_pm_mark_enabled;
 int do_settimeofday(const struct timespec *tv)
 {
 	struct timekeeper *tk = &timekeeper;
 	struct timespec ts_delta, xt;
 	unsigned long flags;
 
-	if (! utc_pm_mark_enabled) {
-		do_prk_utc_cali(tv->tv_sec);
-	}
-
-    if (!timespec_valid_strict(tv))
+	if (!timespec_valid_strict(tv))
 		return -EINVAL;
 
 	raw_spin_lock_irqsave(&timekeeper_lock, flags);
