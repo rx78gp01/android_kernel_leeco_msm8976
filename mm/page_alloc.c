@@ -1155,6 +1155,7 @@ retry_reserve:
 	return page;
 }
 
+#ifdef CONFIG_CMA
 static struct page *__rmqueue_cma(struct zone *zone, unsigned int order)
 {
 	struct page *page = 0;
@@ -1163,6 +1164,12 @@ static struct page *__rmqueue_cma(struct zone *zone, unsigned int order)
 			page = __rmqueue_smallest(zone, order, MIGRATE_CMA);
 	return page;
 }
+#else
+static inline struct page *__rmqueue_cma(struct zone *zone, unsigned int order)
+{
+	return NULL;
+}
+#endif
 
 /*
  * Obtain a specified number of elements from the buddy allocator, all under
@@ -6430,6 +6437,9 @@ static const struct trace_print_flags pageflag_names[] = {
 #endif
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 	{1UL << PG_compound_lock,	"compound_lock"	},
+#endif
+#ifdef CONFIG_KSM_CHECK_PAGE
+	{1UL << PG_ksm_scan0,           "PG_ksm_scan0"  },
 #endif
 	{1UL << PG_readahead,           "PG_readahead"  },
 };
