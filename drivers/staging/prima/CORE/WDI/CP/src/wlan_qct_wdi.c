@@ -7907,10 +7907,10 @@ WDI_ProcessStopReq
                             WDI_SET_POWER_STATE_TIMEOUT);
      if (eWLAN_PAL_STATUS_SUCCESS != status)
      {
-        WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_FATAL,
+        WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_WARN,
                   "WDI Init failed to wait on an event");
 
-        VOS_BUG(0);
+        WDI_ASSERT(0);
         goto fail;
       }
   }
@@ -16424,7 +16424,7 @@ WDI_ProcessInitScanRsp
 
   wdiStatus   =   WDI_HAL_2_WDI_STATUS(halInitScanRspMsg.initScanRspParams.status);
 
-  if ( pWDICtx->bInBmps )
+  if (pWDICtx->bInBmps && (WDI_STATUS_SUCCESS == wdiStatus))
   {
      // notify DTS that we are entering Full power
      wptStatus = WDTS_SetPowerState(pWDICtx, WDTS_POWER_STATE_FULL, NULL);
@@ -16433,6 +16433,12 @@ WDI_ProcessInitScanRsp
                 "WDTS_SetPowerState returned with status %d when trying to notify DTS that host is entering Full Power state", wptStatus);
         WDI_ASSERT(0);
     }
+  }
+  else if (WDI_STATUS_SUCCESS != wdiStatus)
+  {
+//     WPAL_TRACE(eWLAN_MODULE_DAL_CTRL, eWLAN_PAL_TRACE_LEVEL_ERROR,
+//               "Error returned WDI_ProcessInitScanRspi:%d BMPS%d",
+//               wdiStatus, pWDICtx->bInBmps);
   }
 
   /*Notify UMAC*/
@@ -30136,6 +30142,21 @@ void WDI_TransportChannelDebug
    WDTS_ChannelDebug(displaySnapshot, debugFlags);
    return;
 }
+
+/**
+ @brief WDI_TransportKickDxe -
+    Request Kick DXE when HDD TX time out happen
+
+ @param  none
+ @see
+ @return none
+*/
+void WDI_TransportKickDxe()
+{
+   WDTS_ChannelKickDxe();
+   return;
+}
+
 /**
  @brief WDI_SsrTimerCB
     Callback function for SSR timer, if this is called then the graceful

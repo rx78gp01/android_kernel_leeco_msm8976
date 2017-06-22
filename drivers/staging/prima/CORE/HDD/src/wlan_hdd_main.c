@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2012-2015 The Linux Foundation. All rights reserved.
- * Copyright (c) 2017 The LineageOS Project.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -3959,14 +3958,14 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
        }
        else if (strncmp(command, "SCAN-ACTIVE", 11) == 0)
        {
-           VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                              FL("making default scan to ACTIVE"));
+           hddLog(LOG1,
+                FL("making default scan to ACTIVE"));
            pHddCtx->scan_info.scan_mode = eSIR_ACTIVE_SCAN;
        }
        else if (strncmp(command, "SCAN-PASSIVE", 12) == 0)
        {
-           VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
-                              FL("making default scan to PASSIVE"));
+           hddLog(LOG1,
+                FL("making default scan to PASSIVE"));
            pHddCtx->scan_info.scan_mode = eSIR_PASSIVE_SCAN;
        }
        else if (strncmp(command, "GETDWELLTIME", 12) == 0)
@@ -10017,7 +10016,7 @@ int hdd_wlan_startup(struct device *dev )
       pHddCtx->cfg_ini->intfMacAddr[0] = mac_addr;
 
       hddLog(VOS_TRACE_LEVEL_ERROR,
-             "%s: WLAN MAC Addr: "
+             "%s: WLAN Mac Addr: "
              MAC_ADDRESS_STR, __func__,
              MAC_ADDR_ARRAY(pHddCtx->cfg_ini->intfMacAddr[0].bytes));
 
@@ -10074,22 +10073,6 @@ int hdd_wlan_startup(struct device *dev )
    }
    {
       eHalStatus halStatus;
-
-      /* Overwrite the MAC address if config file exist */
-      if (VOS_STATUS_SUCCESS != hdd_update_mac_config(pHddCtx))
-      {
-         hddLog(VOS_TRACE_LEVEL_WARN,
-                "%s: Didn't overwrite MAC from config file",
-                __func__);
-      } else {
-         pr_info("%s: WLAN MAC Addr from config: %02X:%02X:%02X:%02X:%02X:%02X\n", WLAN_MODULE_NAME,
-                 pHddCtx->cfg_ini->intfMacAddr[0].bytes[0],
-                 pHddCtx->cfg_ini->intfMacAddr[0].bytes[1],
-                 pHddCtx->cfg_ini->intfMacAddr[0].bytes[2],
-                 pHddCtx->cfg_ini->intfMacAddr[0].bytes[3],
-                 pHddCtx->cfg_ini->intfMacAddr[0].bytes[4],
-                 pHddCtx->cfg_ini->intfMacAddr[0].bytes[5]);
-      }
 
       /* Set the MAC Address Currently this is used by HAL to
        * add self sta. Remove this once self sta is added as

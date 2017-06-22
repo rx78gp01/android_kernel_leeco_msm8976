@@ -2296,21 +2296,6 @@ VOS_STATUS WDA_prepareConfigTLV(v_PVOID_t pVosContext,
    tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
                            + sizeof(tHalCfg) + tlvStruct->length) ;
 
-   /* QWLAN_HAL_CFG_BAR_WAKEUP_HOST_DISABLE */
-   tlvStruct->type = QWLAN_HAL_CFG_BAR_WAKEUP_HOST_DISABLE;
-   tlvStruct->length = sizeof(tANI_U32);
-   configDataValue = (tANI_U32 *)(tlvStruct + 1);
-
-   if (wlan_cfgGetInt(pMac, WNI_CFG_DISABLE_BAR_WAKE_UP_HOST,
-                         configDataValue ) != eSIR_SUCCESS)
-   {
-       VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
-                "Failed to get value for WNI_CFG_DISABLE_BAR_WAKE_UP_HOST");
-       goto handle_failure;
-   }
-   tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
-                           + sizeof(tHalCfg) + tlvStruct->length) ;
-
    /* QWLAN_HAL_CFG_CONS_BCNMISS_COUNT */
    tlvStruct->type = QWLAN_HAL_CFG_CONS_BCNMISS_COUNT;
    tlvStruct->length = sizeof(tANI_U32);
@@ -2340,6 +2325,21 @@ VOS_STATUS WDA_prepareConfigTLV(v_PVOID_t pVosContext,
 
    tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
                             + sizeof(tHalCfg) + tlvStruct->length);
+
+   /* QWLAN_HAL_CFG_BAR_WAKEUP_HOST_DISABLE */
+   tlvStruct->type = QWLAN_HAL_CFG_BAR_WAKEUP_HOST_DISABLE;
+   tlvStruct->length = sizeof(tANI_U32);
+   configDataValue = (tANI_U32 *)(tlvStruct + 1);
+
+   if (wlan_cfgGetInt(pMac, WNI_CFG_DISABLE_BAR_WAKE_UP_HOST,
+                         configDataValue ) != eSIR_SUCCESS)
+   {
+       VOS_TRACE(VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
+                "Failed to get value for WNI_CFG_DISABLE_BAR_WAKE_UP_HOST");
+       goto handle_failure;
+   }
+   tlvStruct = (tHalCfg *)( (tANI_U8 *) tlvStruct
+                           + sizeof(tHalCfg) + tlvStruct->length) ;
 
 
    wdiStartParams->usConfigBufferLen = (tANI_U8 *)tlvStruct - tlvStructStart ;
@@ -13630,8 +13630,6 @@ VOS_STATUS WDA_TxPacket(tWDA_CbContext *pWDA,
       /* TX MGMT fail with COMP timeout, try to detect DXE stall */
       WDA_TransportChannelDebug(pMac, 1, 0);
 
-      WLANTL_TLDebugMessage(WLANTL_DEBUG_FW_CLEANUP);
-
       if( pAckTxComp )
       {
          pWDA->pAckTxCbFunc = NULL;
@@ -17745,6 +17743,8 @@ void WDA_ReceiveFilterClearFilterRespCallback(
                         void * pUserData)
 {
    tWDA_ReqParams *pWdaParams = (tWDA_ReqParams *)pUserData;
+   tSirRcvFltPktClearParam *pktClearParam;
+
    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
                                           "<------ %s " ,__func__);
 /*   WDA_VOS_ASSERT(NULL != pWdaParams); */
@@ -17755,7 +17755,14 @@ void WDA_ReceiveFilterClearFilterRespCallback(
       VOS_ASSERT(0) ;
       return ;
    }
-   
+
+   pktClearParam = (tSirRcvFltPktClearParam *)pWdaParams->wdaMsgParam;
+   if(pktClearParam->pktFilterCallback)
+   {
+       pktClearParam->pktFilterCallback(
+            pktClearParam->cbCtx,
+            CONVERT_WDI2SIR_STATUS(pwdiRcvFltPktClearRspParamsType->wdiStatus));
+   }
    vos_mem_free(pWdaParams->wdaMsgParam) ;
    vos_mem_free(pWdaParams->wdaWdiApiMsgParam);
    vos_mem_free(pWdaParams) ;
@@ -17772,6 +17779,7 @@ void WDA_ReceiveFilterClearFilterRespCallback(
 void WDA_ReceiveFilterClearFilterReqCallback(WDI_Status wdiStatus, void* pUserData)
 {
    tWDA_ReqParams *pWdaParams = (tWDA_ReqParams *)pUserData;
+   tSirRcvFltPktClearParam *pktClearParam;
 
    VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_INFO,
               "<------ %s, wdiStatus: %d", __func__, wdiStatus);
@@ -17786,6 +17794,13 @@ void WDA_ReceiveFilterClearFilterReqCallback(WDI_Status wdiStatus, void* pUserDa
 
    if(IS_WDI_STATUS_FAILURE(wdiStatus))
    {
+      pktClearParam = (tSirRcvFltPktClearParam *)pWdaParams->wdaMsgParam;
+      if(pktClearParam->pktFilterCallback)
+      {
+          pktClearParam->pktFilterCallback(
+              pktClearParam->cbCtx,
+              CONVERT_WDI2SIR_STATUS(wdiStatus));
+      }
       vos_mem_free(pWdaParams->wdaWdiApiMsgParam);
       vos_mem_free(pWdaParams->wdaMsgParam);
       vos_mem_free(pWdaParams);
@@ -17843,6 +17858,12 @@ VOS_STATUS WDA_ProcessReceiveFilterClearFilterReq (tWDA_CbContext *pWDA,
    {
       VOS_TRACE( VOS_MODULE_ID_WDA, VOS_TRACE_LEVEL_ERROR,
               "Failure in WDA_ProcessReceiveFilterClearFilterReq(), free all the memory " );
+      if(pRcvFltPktClearParam->pktFilterCallback)
+      {
+          pRcvFltPktClearParam->pktFilterCallback(
+                pRcvFltPktClearParam->cbCtx,
+                CONVERT_WDI2SIR_STATUS(status));
+      }
       vos_mem_free(pWdaParams->wdaWdiApiMsgParam) ;
       vos_mem_free(pWdaParams->wdaMsgParam);
       vos_mem_free(pWdaParams);
@@ -18305,6 +18326,27 @@ void WDA_TransportChannelDebug
    WDI_TransportChannelDebug(displaySnapshot, debugFlags);
    return;
 }
+
+/*==========================================================================
+  FUNCTION   WDA_TransportKickDxe
+
+  DESCRIPTION
+    Request Kick Dxe when first hdd TX time out
+    happens
+
+  PARAMETERS
+    NONE
+
+  RETURN VALUE
+    NONE
+
+===========================================================================*/
+void WDA_TransportKickDxe()
+{
+   WDI_TransportKickDxe();
+   return;
+}
+
 
 /*==========================================================================
   FUNCTION   WDA_SetEnableSSR

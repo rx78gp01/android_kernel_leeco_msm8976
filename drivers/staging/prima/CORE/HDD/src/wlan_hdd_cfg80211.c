@@ -3456,9 +3456,18 @@ static int __wlan_hdd_cfg80211_extscan_set_bssid_hotlist(struct wiphy *wiphy,
     pReqMsg->numAp = nla_get_u32(
               tb[QCA_WLAN_VENDOR_ATTR_EXTSCAN_BSSID_HOTLIST_PARAMS_NUM_AP]);
     hddLog(VOS_TRACE_LEVEL_INFO, FL("Number of AP (%d)"), pReqMsg->numAp);
-
+    if (pReqMsg->numAp > WLAN_EXTSCAN_MAX_HOTLIST_APS) {
+        hddLog(LOGE, FL("Number of AP: %u exceeds max: %u"),
+               pReqMsg->numAp, WLAN_EXTSCAN_MAX_HOTLIST_APS);
+        goto fail;
+    }
     nla_for_each_nested(apTh,
                 tb[QCA_WLAN_VENDOR_ATTR_EXTSCAN_AP_THRESHOLD_PARAM], rem) {
+        if (i == pReqMsg->numAp) {
+            hddLog(LOGW, FL("Ignoring excess AP"));
+            break;
+        }
+
         if(nla_parse(tb2, QCA_WLAN_VENDOR_ATTR_EXTSCAN_SUBCMD_CONFIG_PARAM_MAX,
                 nla_data(apTh), nla_len(apTh),
                 NULL)) {
@@ -3506,6 +3515,12 @@ static int __wlan_hdd_cfg80211_extscan_set_bssid_hotlist(struct wiphy *wiphy,
                 FL("Channel (%u)"), pReqMsg->ap[i].channel);
         i++;
     }
+
+    if (i < pReqMsg->numAp) {
+        hddLog(LOGW, FL("Number of AP %u less than expected %u"),
+                 i, pReqMsg->numAp);
+    }
+
     status = sme_SetBssHotlist(pHddCtx->hHal, pReqMsg);
     if (!HAL_STATUS_SUCCESS(status)) {
         hddLog(VOS_TRACE_LEVEL_ERROR,
@@ -12309,6 +12324,7 @@ int wlan_hdd_disconnect( hdd_adapter_t *pAdapter, u16 reason )
     hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
     hdd_context_t *pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
     long ret;
+    eConnectionState prev_conn_state;
 
     ENTER();
 
@@ -12328,6 +12344,8 @@ int wlan_hdd_disconnect( hdd_adapter_t *pAdapter, u16 reason )
      * as there can be chance for double decrement if context switch
      * Calls  hdd_DisConnectHandler.
      */
+
+    prev_conn_state = pHddStaCtx->conn_info.connState;
 
     spin_lock_bh(&pAdapter->lock_for_active_session);
     if (eConnectionState_Associated ==  pHddStaCtx->conn_info.connState)
@@ -12355,7 +12373,21 @@ int wlan_hdd_disconnect( hdd_adapter_t *pAdapter, u16 reason )
     /*issue disconnect*/
     status = sme_RoamDisconnect( WLAN_HDD_GET_HAL_CTX(pAdapter),
                                  pAdapter->sessionId, reason);
-    if(eHAL_STATUS_CMD_NOT_QUEUED == status)
+    if((eHAL_STATUS_CMD_NOT_QUEUED == status) &&
+             prev_conn_state != eConnectionState_Connecting)
+    {
+        hddLog(LOG1,
+            FL("status = %d, already disconnected"), status);
+        result = 0;
+        goto disconnected;
+    }
+    /*
+     * Wait here instead of returning directly, this will block the next
+     * connect command and allow processing of the scan for ssid and
+     * the previous connect command in CSR. Else we might hit some
+     * race conditions leading to SME and HDD out of sync.
+     */
+    else if(eHAL_STATUS_CMD_NOT_QUEUED == status)
     {
         hddLog(LOG1,
             FL("Already disconnected or connect was in sme/roam pending list and removed by disconnect"));
@@ -12375,7 +12407,6 @@ int wlan_hdd_disconnect( hdd_adapter_t *pAdapter, u16 reason )
     {
         hddLog(LOGE,
               "%s: Failed to disconnect, timed out", __func__);
-        VOS_BUG(0);
         result = -ETIMEDOUT;
     }
 disconnected:
@@ -12511,7 +12542,10 @@ static int __wlan_hdd_cfg80211_disconnect( struct wiphy *wiphy,
                 }
             }
 #endif
-           hddLog(LOG1, FL("Disconnecting with reasoncode:%u"), reasonCode);
+
+            hddLog(LOG1, FL("Disconnecting with reasoncode:%u connState %d"),
+                   reasonCode,
+                   pHddStaCtx->conn_info.connState);
             status = wlan_hdd_disconnect(pAdapter, reasonCode);
             if ( 0 != status )
             {
@@ -16403,6 +16437,12 @@ static int __wlan_hdd_cfg80211_testmode(struct wiphy *wiphy, void *data, int len
 
             buf = nla_data(tb[WLAN_HDD_TM_ATTR_DATA]);
             buf_len = nla_len(tb[WLAN_HDD_TM_ATTR_DATA]);
+
+            if (buf_len > sizeof(*hb_params)) {
+                hddLog(LOGE, FL("buf_len=%d exceeded hb_params size limit"),
+                       buf_len);
+                return -ERANGE;
+            }
 
             hb_params_temp =(tSirLPHBReq *)buf;
             if ((hb_params_temp->cmd == LPHB_SET_TCP_PARAMS_INDID) &&

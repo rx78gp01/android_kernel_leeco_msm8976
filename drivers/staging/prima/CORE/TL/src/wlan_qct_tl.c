@@ -7479,6 +7479,19 @@ WLANTL_TLDebugMessage
             return;
         }
    }
+   if(debugFlags & WLANTL_DEBUG_KICKDXE)
+   {
+        vosMsg.reserved = 0;
+        vosMsg.bodyptr  = NULL;
+        vosMsg.type     = WLANTL_TX_KICKDXE;
+
+        status = vos_tx_mq_serialize( VOS_MODULE_ID_TL, &vosMsg);
+        if(status != VOS_STATUS_SUCCESS)
+        {
+            TLLOGE(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR, "TX Msg Posting Failed with status: %d",status));
+            return;
+        }
+   }
    return;
 }
 
@@ -9875,6 +9888,10 @@ WLANTL_TxProcessMsg
 
   case WLANTL_TX_FW_DEBUG:
     vos_fwDumpReq(274, 0, 0, 0, 0, 1); //Async event
+    break;
+
+  case WLANTL_TX_KICKDXE:
+    WDA_TransportKickDxe();
     break;
 
   default:
@@ -13706,3 +13723,44 @@ WLANTL_GetSTALinkCapacity
 
     return VOS_STATUS_SUCCESS;
 }/* WLANTL_GetSTALinkCapacity */
+
+/*
+ * WLANTL_ResetRxSSN - reset last rx ssn
+ * @pvosGCtx: global vos context
+ * @ucSTAId: station id
+ *
+ * This function resets the last ssn of all tids of the station
+ * for whom BA reorder session exists.
+ *
+ * Return: none
+ */
+void WLANTL_ResetRxSSN(v_PVOID_t pvosGCtx, uint8_t ucSTAId)
+{
+   WLANTL_CbType*  pTLCb = NULL;
+   WLANTL_STAClientType* pClientSTA = NULL;
+   uint8_t i;
+
+  if (WLANTL_STA_ID_INVALID(ucSTAId)) {
+    TLLOGE(VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
+             "WLAN TL:Invalid station id requested WLANTL_ResetRxSSN"));
+    return;
+  }
+
+  pTLCb = VOS_GET_TL_CB(pvosGCtx);
+  if (NULL == pTLCb) {
+    TLLOGE(VOS_TRACE( VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_ERROR,
+         "WLAN TL:Invalid TL pointer from pvosGCtx WLANTL_ResetRxSSN"));
+    return;
+  }
+
+  pClientSTA = pTLCb->atlSTAClients[ucSTAId];
+
+  for (i = 0; i < WLAN_MAX_TID ; i++) {
+     if (0 == pClientSTA->atlBAReorderInfo[i].ucExists) {
+        continue;
+     }
+     TLLOG1(VOS_TRACE(VOS_MODULE_ID_TL, VOS_TRACE_LEVEL_INFO,
+           "WLAN TL: Last RxSSN reset to zero for tid %d", i));
+     pClientSTA->atlBAReorderInfo[i].LastSN = 0;
+  }
+}

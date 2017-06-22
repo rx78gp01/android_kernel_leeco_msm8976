@@ -609,8 +609,8 @@ typedef tSap_SoftapStats WLANTL_TRANSFER_STA_TYPE;
 typedef enum
 {
   WLANTL_DEBUG_TX_SNAPSHOT = 1<<0,
-
   WLANTL_DEBUG_FW_CLEANUP = 1<<1,
+  WLANTL_DEBUG_KICKDXE = 1<<2
 }WLANTL_DebugFlags;
 
 /*----------------------------------------------------------------------------
@@ -3299,4 +3299,17 @@ void WLANTL_StartRxRateMonitor(v_PVOID_t pvosGCtx, wpt_uint8 staId,
 
 void WLANTL_StopRxRateMonitor(v_PVOID_t pvosGCtx);
 #endif
+
+/*
+ * WLANTL_ResetRxSSN - reset last rx ssn
+ * @pvosGCtx: global vos context
+ * @ucSTAId: station id
+ *
+ * This function resets the last ssn of all tids of the station
+ * for whom BA reorder session exists.
+ *
+ * Return: none
+ */
+void WLANTL_ResetRxSSN(v_PVOID_t pvosGCtx, uint8_t ucSTAId);
+
 #endif /* #ifndef WLAN_QCT_WLANTL_H */
