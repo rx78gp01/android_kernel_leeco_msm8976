@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015,2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -156,7 +156,6 @@ struct fastrpc_chan_ctx {
 	struct kref kref;
 	struct notifier_block nb;
 	int ssrcount;
-	int prevssrcount;
 };
 
 struct fastrpc_apps {
@@ -927,18 +926,31 @@ static void inv_args_pre(uint32_t sc, remote_arg64_t *rpra)
 	}
 }
 
-static void inv_args(uint32_t sc, remote_arg64_t *rpra, int used)
+static void inv_args(struct smq_invoke_ctx* ctx)
 {
 	int i, inbufs, outbufs;
+	uint32_t sc = ctx->sc;
+	remote_arg64_t *rpra = ctx->rpra;
+	int used = ctx->used;
 	int inv = 0;
 
 	inbufs = REMOTE_SCALARS_INBUFS(sc);
 	outbufs = REMOTE_SCALARS_OUTBUFS(sc);
 	for (i = inbufs; i < inbufs + outbufs; ++i) {
+		struct fastrpc_mmap *map = ctx->maps[i];
+
+		if (!rpra[i].buf.len)
+			continue;
 		if (buf_page_start(ptr_to_uint64((void *)rpra)) ==
-				buf_page_start(rpra[i].buf.pv))
+				buf_page_start(rpra[i].buf.pv)) {
 			inv = 1;
-		else if (rpra[i].buf.len)
+			continue;
+		}
+		if (map && map->handle)
+			msm_ion_do_cache_op(map->client, map->handle,
+				uint64_to_ptr(rpra[i].buf.pv), rpra[i].buf.len,
+				ION_IOC_INV_CACHES);
+		else
 			dmac_inv_range((char *)uint64_to_ptr(rpra[i].buf.pv),
 				(char *)uint64_to_ptr(rpra[i].buf.pv
 						 + rpra[i].buf.len));
@@ -1068,12 +1080,12 @@ static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,
 
 	inv_args_pre(ctx->sc, ctx->rpra);
 	if (FASTRPC_MODE_SERIAL == mode)
-		inv_args(ctx->sc, ctx->rpra, ctx->used);
+		inv_args(ctx);
 	VERIFY(err, 0 == fastrpc_invoke_send(ctx, kernel, invoke->handle));
 	if (err)
 		goto bail;
 	if (FASTRPC_MODE_PARALLEL == mode)
-		inv_args(ctx->sc, ctx->rpra, ctx->used);
+		inv_args(ctx);
  wait:
 	if (kernel)
 		wait_for_completion(&ctx->work);
@@ -1611,13 +1623,8 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 		kref_init(&me->channel[cid].kref);
 		pr_info("'opened /dev/%s c %d %d'\n", gcinfo[cid].name,
 						MAJOR(me->dev_no), cid);
-		if (me->channel[cid].ssrcount !=
-				 me->channel[cid].prevssrcount) {
-			if (fastrpc_mmap_remove_ssr(fl))
-				pr_err("ADSPRPC: SSR: Failed to unmap remote heap\n");
-			me->channel[cid].prevssrcount =
-						me->channel[cid].ssrcount;
-		}
+		if (fastrpc_mmap_remove_ssr(fl))
+			pr_err("ADSPRPC: SSR: Failed to unmap remote heap\n");
 	}
 	spin_lock(&me->hlock);
 	hlist_add_head(&fl->hn, &me->drivers);
@@ -1804,7 +1811,6 @@ static int __init fastrpc_device_init(void)
 		if (err)
 			goto device_create_bail;
 		me->channel[i].ssrcount = 0;
-		me->channel[i].prevssrcount = 0;
 		me->channel[i].nb.notifier_call = fastrpc_restart_notifier_cb,
 		(void)subsys_notif_register_notifier(gcinfo[i].subsys,
 							&me->channel[i].nb);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -226,13 +226,6 @@ static void socket_data_ready(struct sock *sk_ptr, int bytes)
 	spin_unlock_irqrestore(&info->lock, flags);
 	diag_ws_on_notify();
 
-	/*
-	 * Initialize read buffers for the servers. The servers must read data
-	 * first to get the address of its clients.
-	 */
-	if (!atomic_read(&info->opened) && info->port_type == PORT_TYPE_SERVER)
-		diagfwd_buffers_init(info->fwd_ctxt);
-
 	queue_work(info->wq, &(info->read_work));
 	wake_up_interruptible(&info->read_wait_q);
 	return;
@@ -241,7 +234,7 @@ static void socket_data_ready(struct sock *sk_ptr, int bytes)
 static void cntl_socket_data_ready(struct sock *sk_ptr, int bytes)
 {
 	if (!sk_ptr || !cntl_socket) {
-		pr_err_ratelimited("diag: In %s, invalid ptrs. sk_ptr: %p cntl_socket: %p\n",
+		pr_err_ratelimited("diag: In %s, invalid ptrs. sk_ptr: %pK cntl_socket: %pK\n",
 				   __func__, sk_ptr, cntl_socket);
 		return;
 	}
@@ -474,7 +467,8 @@ static int cntl_socket_process_msg_server(uint32_t cmd, uint32_t svc_id,
 	uint8_t peripheral;
 	uint8_t found = 0;
 	struct diag_socket_info *info = NULL;
-	for (peripheral = 0; peripheral < NUM_PERIPHERALS; peripheral++) {
+
+	for (peripheral = 0; peripheral <= NUM_PERIPHERALS; peripheral++) {
 		info = &socket_cmd[peripheral];
 		if ((svc_id == info->svc_id) &&
 		    (ins_id == info->ins_id)) {
@@ -522,7 +516,7 @@ static int cntl_socket_process_msg_client(uint32_t cmd, uint32_t node_id,
 	struct diag_socket_info *info = NULL;
 	struct msm_ipc_port_addr remote_port = {0};
 
-	for (peripheral = 0; peripheral < NUM_PERIPHERALS; peripheral++) {
+	for (peripheral = 0; peripheral <= NUM_PERIPHERALS; peripheral++) {
 		info = &socket_data[peripheral];
 		remote_port = info->remote_addr.address.addr.port_addr;
 		if ((remote_port.node_id == node_id) &&
@@ -620,6 +614,9 @@ static void socket_read_work_fn(struct work_struct *work)
 	if (!info)
 		return;
 
+	if (!atomic_read(&info->opened) && info->port_type == PORT_TYPE_SERVER)
+		diagfwd_buffers_init(info->fwd_ctxt);
+
 	diagfwd_channel_read(info->fwd_ctxt);
 }
 
@@ -631,6 +628,8 @@ static void diag_socket_queue_read(void *ctxt)
 		return;
 
 	info = (struct diag_socket_info *)ctxt;
+	if (info->peripheral != PERIPHERAL_MODEM)
+		return;
 	if (info->hdl && info->wq)
 		queue_work(info->wq, &(info->read_work));
 }
@@ -645,6 +644,7 @@ void diag_socket_invalidate(void *ctxt, struct diagfwd_info *fwd_ctxt)
 	info = (struct diag_socket_info *)ctxt;
 	info->fwd_ctxt = fwd_ctxt;
 }
+
 int diag_socket_check_state(void *ctxt)
 {
 	struct diag_socket_info *info = NULL;
@@ -655,6 +655,7 @@ int diag_socket_check_state(void *ctxt)
 	info = (struct diag_socket_info *)ctxt;
 	return (int)(atomic_read(&info->diag_state));
 }
+
 static void __diag_socket_init(struct diag_socket_info *info)
 {
 	uint16_t ins_base = 0;
@@ -895,7 +896,9 @@ static int diag_socket_read(void *ctxt, unsigned char *buf, int buf_len)
 		DIAG_LOG(DIAG_DEBUG_PERIPHERALS,
 			 "%s closing read thread. diag state is closed\n",
 			 info->name);
-		diag_ws_release();
+		mutex_lock(&driver->diagfwd_channel_mutex);
+		diagfwd_channel_read_done(info->fwd_ctxt, buf, 0);
+		mutex_unlock(&driver->diagfwd_channel_mutex);
 		return 0;
 	}
 
