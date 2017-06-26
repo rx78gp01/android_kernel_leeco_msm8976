@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,11 +18,10 @@
 #include <linux/interrupt.h>
 
 struct subsys_device;
-extern struct bus_type subsys_bus_type;
 
 enum {
-	RESET_SUBSYS_COUPLED = 0,
-	RESET_SOC,
+	RESET_SOC = 0,
+	RESET_SUBSYS_COUPLED,
 	RESET_LEVEL_MAX
 };
 
@@ -174,7 +173,7 @@ static inline void notify_proxy_vote(struct device *device) { }
 static inline void notify_proxy_unvote(struct device *device) { }
 static inline int wait_for_shutdown_ack(struct subsys_desc *desc)
 {
-	return 0;
+	return -ENOSYS;
 }
 #endif /* CONFIG_MSM_SUBSYSTEM_RESTART */
 
