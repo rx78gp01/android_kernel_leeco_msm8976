@@ -51,7 +51,9 @@
 #include <linux/qpnp/qpnp-adc.h>
 
 #include <linux/msm-bus.h>
+#ifdef CONFIG_USB_TYPE_C_LEECO
 #include <linux/type-c_notify.h>
+#endif
 #if defined(CONFIG_FB)
 #include <linux/notifier.h>
 #include <linux/fb.h>
@@ -81,6 +83,7 @@
 #define USB_SUSPEND_DELAY_TIME	(500 * HZ/1000) /* 500 msec */
 
 #define USB_DEFAULT_SYSTEM_CLOCK 80000000	/* 80 MHz */
+#ifdef CONFIG_USB_TYPE_C_LEECO
 extern int headset_vbus_status;
 static int usb_audio_mode_status = 0;
 static int otg_vbus_status = 1;
@@ -91,6 +94,7 @@ extern void ptn5150_usb_audio_mode_set(bool mode);
 extern bool is_ti_type_c_register;
 extern bool is_nxp_type_c_register;
 static int usb_audio_suspend_status = 0;
+#endif
 enum msm_otg_phy_reg_mode {
 	USB_PHY_REG_OFF,
 	USB_PHY_REG_ON,
@@ -146,6 +150,8 @@ static bool legacy_power_supply;
 
 extern bool is_detecting_usb_type;
 
+#ifdef CONFIG_USB_TYPE_C_LEECO
+
 #define WAIT_OTG_POWER_TIMEOUT_MS    msecs_to_jiffies(100) /* 100ms */
 static u8 otg_power_on = 0;
 static wait_queue_head_t    set_otg_power_wait;
@@ -167,6 +173,8 @@ static int typec_set_otg_power_notifier(struct notifier_block *self,unsigned lon
     }
     return NOTIFY_OK;
 }
+
+#endif
 
 static inline bool aca_enabled(void)
 {
@@ -2303,10 +2311,12 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 	 */
 	if (on) {
 		msm_otg_notify_host_mode(motg, on);
+#ifdef CONFIG_USB_TYPE_C_LEECO
         wait_event_interruptible_timeout(
         set_otg_power_wait,
         (1 == otg_power_on),
         WAIT_OTG_POWER_TIMEOUT_MS);
+#endif
 		ret = regulator_enable(vbus_otg);
 		if (ret) {
 			pr_err("unable to enable vbus_otg\n");
@@ -2324,6 +2334,7 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 	}
 }
 
+#ifdef CONFIG_USB_TYPE_C_LEECO
 void msm_otg_vbus_power_set(bool enable)
 {
 	int ret;
@@ -2379,6 +2390,8 @@ static int usbheadset_resume_pm_event(struct notifier_block *notifier,
 	return 0;
 }
 #endif
+#endif
+
 static int msm_otg_set_host(struct usb_otg *otg, struct usb_bus *host)
 {
 	struct msm_otg *motg = container_of(otg->phy, struct msm_otg, phy);
@@ -6459,7 +6472,9 @@ static int msm_otg_remove(struct platform_device *pdev)
 		return -EBUSY;
 
 	unregister_pm_notifier(&motg->pm_notify);
+#ifdef CONFIG_USB_TYPE_C_LEECO
     type_c_otg_power_unregister_client(&typec_set_otg_power_notif);
+#endif
 
 	if (!motg->ext_chg_device) {
 		device_destroy(motg->ext_chg_class, motg->ext_chg_dev);
@@ -6638,6 +6653,7 @@ static int msm_otg_pm_suspend(struct device *dev)
 	ret = msm_otg_suspend(motg);
 	if (ret)
 		atomic_set(&motg->pm_suspended, 0);
+#ifdef CONFIG_USB_TYPE_C_LEECO
 	if ((otg_vbus_status ==1)&&letv_audio_mode_supported(NULL)&&
 	    cclogic_get_audio_mode() == 0&&headset_vbus_status ==0) {
 		if(usb_audio_mode_status){
@@ -6658,6 +6674,7 @@ static int msm_otg_pm_suspend(struct device *dev)
 	    msm_otg_vbus_power_set(false);
 	    mdelay(300);
 	}
+#endif
 	return ret;
 }
 
@@ -6667,9 +6684,11 @@ static int msm_otg_pm_resume(struct device *dev)
 	struct msm_otg *motg = dev_get_drvdata(dev);
 
 	dev_dbg(dev, "OTG PM resume\n");
+#ifdef CONFIG_USB_TYPE_C_LEECO
 	if((otg_vbus_status ==0)&&(usb_audio_mode_status == 0)&&(usb_audio_suspend_status == 1)){
 		msm_otg_vbus_power_set(true);
 	}
+#endif
 	msm_otg_dbg_log_event(&motg->phy, "PM RESUME START",
 			get_pm_runtime_counter(dev), motg->pm_done);
 
