@@ -791,12 +791,19 @@ static ssize_t kgsl_pwrctrl_gpuclk_show(struct device *dev,
 				    struct device_attribute *attr,
 				    char *buf)
 {
+	unsigned long freq;
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_pwrctrl *pwr;
 	if (device == NULL)
 		return 0;
 	pwr = &device->pwrctrl;
-	return snprintf(buf, PAGE_SIZE, "%ld\n", kgsl_pwrctrl_active_freq(pwr));
+
+	if (device->state == KGSL_STATE_SLUMBER)
+		freq = pwr->pwrlevels[pwr->num_pwrlevels - 1].gpu_freq;
+	else
+		freq = kgsl_pwrctrl_active_freq(pwr);
+
+	return snprintf(buf, PAGE_SIZE, "%lu\n", freq);
 }
 
 static ssize_t kgsl_pwrctrl_idle_timer_store(struct device *dev,
@@ -1593,7 +1600,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 
 		if (!pwr->ocmem_pcl) {
 			KGSL_PWR_ERR(device,
-				"msm_bus_scale_register_client failed: id %d table %p",
+				"msm_bus_scale_register_client failed: id %d table %pK",
 				device->id, ocmem_scale_table);
 			result = -EINVAL;
 			goto done;
@@ -1643,7 +1650,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 				(pdata->bus_scale_table);
 		if (!pwr->pcl) {
 			KGSL_PWR_ERR(device,
-				"msm_bus_scale_register_client failed: id %d table %p",
+				"msm_bus_scale_register_client failed: id %d table %pK",
 				device->id, pdata->bus_scale_table);
 			result = -EINVAL;
 			goto done;

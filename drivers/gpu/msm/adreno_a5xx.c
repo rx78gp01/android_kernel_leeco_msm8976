@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -469,12 +469,10 @@ static void a5xx_regulator_disable(struct adreno_device *adreno_dev)
 	unsigned int reg;
 	struct kgsl_device *device = &adreno_dev->dev;
 
-	if (adreno_is_a510(adreno_dev))
-		return;
-
 	/* If feature is not supported or not enabled */
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_SPTP_PC) ||
-		!test_bit(ADRENO_SPTP_PC_CTRL, &adreno_dev->pwrctrl_flag)) {
+	if (!adreno_is_a510(adreno_dev) &&
+		(!ADRENO_FEATURE(adreno_dev, ADRENO_SPTP_PC) ||
+		!test_bit(ADRENO_SPTP_PC_CTRL, &adreno_dev->pwrctrl_flag))) {
 		/* Set the default register values; set SW_COLLAPSE to 1 */
 		kgsl_regwrite(device, A5XX_GPMU_SP_POWER_CNTL, 0x778001);
 		/*
@@ -508,7 +506,7 @@ static void a5xx_regulator_disable(struct adreno_device *adreno_dev)
 			KGSL_PWR_WARN(device, "GMEM is forced on\n");
 	}
 
-	if (adreno_is_a530(adreno_dev)) {
+	if (adreno_is_a530(adreno_dev) || adreno_is_a510(adreno_dev)) {
 		/* Reset VBIF before PC to avoid popping bogus FIFO entries */
 		kgsl_regwrite(device, A5XX_RBBM_BLOCK_SW_RESET_CMD,
 			0x003C0000);
@@ -561,7 +559,7 @@ static const struct kgsl_hwcg_reg a510_hwcg_regs[] = {
 	{A5XX_RBBM_CLOCK_CNTL_CCU0, 0x00022220},
 	{A5XX_RBBM_CLOCK_CNTL_CCU1, 0x00022220},
 	{A5XX_RBBM_CLOCK_CNTL_RAC, 0x05522222},
-	{A5XX_RBBM_CLOCK_CNTL2_RAC, 0x00555555},
+	{A5XX_RBBM_CLOCK_CNTL2_RAC, 0x00505555},
 	{A5XX_RBBM_CLOCK_HYST_RB_CCU0, 0x04040404},
 	{A5XX_RBBM_CLOCK_HYST_RB_CCU1, 0x04040404},
 	{A5XX_RBBM_CLOCK_HYST_RAC, 0x07444044},
@@ -652,7 +650,7 @@ static const struct kgsl_hwcg_reg a530_hwcg_regs[] = {
 	{A5XX_RBBM_CLOCK_CNTL_CCU2, 0x00022220},
 	{A5XX_RBBM_CLOCK_CNTL_CCU3, 0x00022220},
 	{A5XX_RBBM_CLOCK_CNTL_RAC, 0x05522222},
-	{A5XX_RBBM_CLOCK_CNTL2_RAC, 0x00555555},
+	{A5XX_RBBM_CLOCK_CNTL2_RAC, 0x00505555},
 	{A5XX_RBBM_CLOCK_HYST_RB_CCU0, 0x04040404},
 	{A5XX_RBBM_CLOCK_HYST_RB_CCU1, 0x04040404},
 	{A5XX_RBBM_CLOCK_HYST_RB_CCU2, 0x04040404},
@@ -1359,11 +1357,11 @@ static void a5xx_start(struct adreno_device *adreno_dev)
 		set_bit(ADRENO_DEVICE_HANG_INTR, &adreno_dev->priv);
 		gpudev->irq->mask |= (1 << A5XX_INT_MISC_HANG_DETECT);
 		/*
-		 * Set hang detection threshold to 1 million cycles
-		 * (0xFFFF*16)
+		 * Set hang detection threshold to 4 million cycles
+		 * (0x3FFFF*16)
 		 */
 		kgsl_regwrite(device, A5XX_RBBM_INTERFACE_HANG_INT_CNTL,
-					  (1 << 30) | 0xFFFF);
+					  (1 << 30) | 0x3FFFF);
 	}
 
 
