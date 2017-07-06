@@ -1353,7 +1353,7 @@ static int tasha_micbias_control(struct snd_soc_codec *codec,
 }
 
 static int tasha_mbhc_request_micbias(struct snd_soc_codec *codec,
-				      int req)
+				      int micb_num, int req)
 {
 	int ret;
 
@@ -1364,7 +1364,7 @@ static int tasha_mbhc_request_micbias(struct snd_soc_codec *codec,
 	if (req == MICB_ENABLE)
 		tasha_cdc_mclk_enable(codec, true, false);
 
-	ret = tasha_micbias_control(codec, MIC_BIAS_2, req, false);
+	ret = tasha_micbias_control(codec, micb_num, req, false);
 
 	/*
 	 * Release vote for mclk while requesting for
