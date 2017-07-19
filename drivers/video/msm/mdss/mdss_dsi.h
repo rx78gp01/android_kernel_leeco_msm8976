@@ -792,9 +792,4 @@ extern int synaptics_rmi4_int_enable(struct synaptics_rmi4_data *rmi4_data,bool 
 extern struct synaptics_rmi4_data *rmi4_data_truly;
 extern bool is_tp_insert;
 extern bool tp_sleep_mode;
-#ifdef CONFIG_WAKE_GESTURES
-extern bool s2w_switch;
-extern struct synaptics_rmi4_data *gl_rmi4_data;
-extern void synaptics_rmi4_s2w_mode(struct synaptics_rmi4_data *rmi4_data, bool enable);
-#endif
 #endif /* MDSS_DSI_H */

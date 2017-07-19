@@ -47,7 +47,6 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
-#include <linux/wakelock.h>
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))
 #define KERNEL_ABOVE_2_6_38
@@ -368,7 +367,6 @@ struct synaptics_rmi4_data {
 	bool fingers_on_2d;
 	bool suspend;
 	bool issuspended;
-	bool gesture_sleep;
 	bool sensor_sleep;
 	bool stay_awake;
 	bool fb_ready;
@@ -376,7 +374,6 @@ struct synaptics_rmi4_data {
 	bool f12_wakeup_gesture;
 	bool enable_wakeup_gesture;
 	bool wedge_sensor;
-	struct wake_lock rmi4_wake_lock;
 	bool report_pressure;
 	bool stylus_enable;
 	bool eraser_enable;
