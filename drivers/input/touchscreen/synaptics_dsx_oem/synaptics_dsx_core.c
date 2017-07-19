@@ -962,12 +962,13 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		if (retval < 0)
 			return 0;
 
-		if (detected_gestures) {
+		if(rmi4_data->gesture_sleep && detected_gestures) {
+			wake_lock_timeout(&rmi4_data->rmi4_wake_lock, 5*HZ);
 			input_report_key(rmi4_data->input_dev, KEY_WAKEUP, 1);
 			input_sync(rmi4_data->input_dev);
 			input_report_key(rmi4_data->input_dev, KEY_WAKEUP, 0);
 			input_sync(rmi4_data->input_dev);
-			rmi4_data->suspend = false;
+			rmi4_data->gesture_sleep = false;
 		}
 
 		return 0;
@@ -1123,13 +1124,12 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 
 		gesture_type = rmi4_data->gesture_detection[0];
 
-		if(rmi4_data->gesture_sleep && gesture_type) {
-			wake_lock_timeout(&rmi4_data->rmi4_wake_lock, 5*HZ);
+		if (gesture_type && gesture_type != F12_UDG_DETECT) {
 			input_report_key(rmi4_data->input_dev, KEY_WAKEUP, 1);
 			input_sync(rmi4_data->input_dev);
 			input_report_key(rmi4_data->input_dev, KEY_WAKEUP, 0);
 			input_sync(rmi4_data->input_dev);
-			rmi4_data->gesture_sleep = false;
+			rmi4_data->suspend = false;
 		}
 
 		return 0;
