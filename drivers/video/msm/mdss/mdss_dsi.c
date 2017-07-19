@@ -276,8 +276,15 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 				panel_data);
 	if(is_tp_insert)
 	{
+#ifdef CONFIG_WAKE_GESTURES
+		if (s2w_switch) {
+			synaptics_rmi4_s2w_mode(gl_rmi4_data, true);
+			synaptics_rmi4_sleep_enable(gl_rmi4_data, true);
+		}
+#else
 		synaptics_rmi4_wakeup_gesture(rmi4_data_truly, true);
 		synaptics_rmi4_sleep_enable(rmi4_data_truly, true);
+#endif
 		msleep(50);
 		tp_sleep_mode = true;
 	}
