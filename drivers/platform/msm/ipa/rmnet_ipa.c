@@ -2716,6 +2716,7 @@ static int __init ipa_wwan_init(void)
 	mutex_init(&ipa_to_apps_pipe_handle_guard);
 	mutex_init(&add_mux_channel_lock);
 	ipa_to_apps_hdl = -1;
+	mutex_init(&add_mux_channel_lock);
 
 	ipa_qmi_init();
 
@@ -2726,7 +2727,7 @@ static int __init ipa_wwan_init(void)
 		return platform_driver_register(&rmnet_ipa_driver);
 	else
 		return (int)PTR_ERR(subsys_notify_handle);
-	}
+}
 
 static void __exit ipa_wwan_cleanup(void)
 {
@@ -2740,6 +2741,7 @@ static void __exit ipa_wwan_cleanup(void)
 		IPAWANERR(
 		"Error subsys_notif_unregister_notifier system %s, ret=%d\n",
 		SUBSYS_MODEM, ret);
+
 	platform_driver_unregister(&rmnet_ipa_driver);
 }
 
