@@ -673,8 +673,8 @@
 	qcom,battery-data = <&qrd_batterydata>;
 	qcom,float-voltage-mv = <4400>;
 	qcom,chg-led-sw-controls;
-	qcom,thermal-mitigation = <4500 3000 2000 1000 900 600 0>;
-	qcom,current-mitigation = <4500 3000 2000 500 500>;
+	qcom,thermal-mitigation = <2000 1500 700 600 0>;
+	qcom,current-mitigation = <2000 500 500>;
 	qcom,temp-mitigation = <38 41 44>;
 	qcom,quiet_therm-vadc = <&pm8950_vadc>;
 	status = "okay";
