@@ -87,6 +87,17 @@ static enum vidc_status hfi_map_err_status(u32 hfi_err)
 	return vidc_err;
 }
 
+static enum msm_vidc_pixel_depth get_hal_pixel_depth(u32 hfi_bit_depth)
+{
+	switch (hfi_bit_depth) {
+	case HFI_BITDEPTH_8: return MSM_VIDC_BIT_DEPTH_8;
+	case HFI_BITDEPTH_9:
+	case HFI_BITDEPTH_10: return MSM_VIDC_BIT_DEPTH_10;
+	}
+	dprintk(VIDC_ERR, "Unsupported bit depth: %d\n", hfi_bit_depth);
+	return MSM_VIDC_BIT_DEPTH_UNSUPPORTED;
+}
+
 struct hal_session *hfi_process_get_session(
 		struct list_head *sessions, u32 session_id)
 {
@@ -111,8 +122,12 @@ static void hfi_process_sess_evt_seq_changed(
 	int num_properties_changed;
 	struct hfi_frame_size *frame_sz;
 	struct hfi_profile_level *profile_level;
+	struct hfi_bit_depth *pixel_depth;
+	struct hfi_pic_struct *pic_struct;
 	u8 *data_ptr;
 	int prop_id;
+	enum msm_vidc_pixel_depth luma_bit_depth, chroma_bit_depth;
+	struct hfi_colour_space *colour_info;
 
 	if (sizeof(struct hfi_msg_event_notify_packet)
 		> pkt->size) {
@@ -162,6 +177,61 @@ static void hfi_process_sess_evt_seq_changed(
 					profile_level->level);
 				data_ptr +=
 					sizeof(struct hfi_profile_level);
+				break;
+			case HFI_PROPERTY_PARAM_VDEC_PIXEL_BITDEPTH:
+				data_ptr = data_ptr + sizeof(u32);
+				pixel_depth = (struct hfi_bit_depth *) data_ptr;
+				/*
+				 * Luma and chroma can have different bitdepths.
+				 * Driver should rely on luma and chroma
+				 * bitdepth for determining output bitdepth
+				 * type.
+				 *
+				 * pixel_depth->bitdepth will include luma
+				 * bitdepth info in bits 0..15 and chroma
+				 * bitdept in bits 16..31.
+				 */
+				luma_bit_depth = get_hal_pixel_depth(
+					pixel_depth->bit_depth &
+					GENMASK(15, 0));
+				chroma_bit_depth = get_hal_pixel_depth(
+					(pixel_depth->bit_depth &
+					GENMASK(31, 16)) >> 16);
+				if (luma_bit_depth == MSM_VIDC_BIT_DEPTH_10 ||
+					chroma_bit_depth ==
+						MSM_VIDC_BIT_DEPTH_10)
+					event_notify.bit_depth =
+						MSM_VIDC_BIT_DEPTH_10;
+				else
+					event_notify.bit_depth = luma_bit_depth;
+				/*dprintk(VIDC_DBG,
+					"bitdepth(%d), luma_bit_depth(%d), chroma_bit_depth(%d)\n",
+					event_notify.bit_depth, luma_bit_depth,
+					chroma_bit_depth);*/
+				data_ptr += sizeof(struct hfi_bit_depth);
+				break;
+			case HFI_PROPERTY_PARAM_VDEC_PIC_STRUCT:
+				data_ptr = data_ptr + sizeof(u32);
+				pic_struct = (struct hfi_pic_struct *) data_ptr;
+				event_notify.pic_struct =
+					pic_struct->progressive_only;
+				/*dprintk(VIDC_DBG,
+					"Progressive only flag: %d\n",
+						pic_struct->progressive_only);*/
+				data_ptr +=
+					sizeof(struct hfi_pic_struct);
+				break;
+			case HFI_PROPERTY_PARAM_VDEC_COLOUR_SPACE:
+				data_ptr = data_ptr + sizeof(u32);
+				colour_info =
+					(struct hfi_colour_space *) data_ptr;
+				event_notify.colour_space =
+					colour_info->colour_space;
+				/*dprintk(VIDC_DBG,
+					"Colour space value is: %d\n",
+						colour_info->colour_space);*/
+				data_ptr +=
+					sizeof(struct hfi_colour_space);
 				break;
 			default:
 				dprintk(VIDC_ERR,
