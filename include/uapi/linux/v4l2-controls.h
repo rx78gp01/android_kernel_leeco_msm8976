@@ -1071,6 +1071,16 @@ enum v4l2_cid_mpeg_vidc_video_vpe_csc_type_enable {
 	V4L2_CID_MPEG_VIDC_VIDEO_VPE_CSC_ENABLE   = 1
 };
 
+#define V4L2_CID_MPEG_VIDC_VIDEO_DPB_COLOR_FORMAT \
+		(V4L2_CID_MPEG_MSM_VIDC_BASE + 88)
+
+enum v4l2_mpeg_vidc_video_dpb_color_format {
+	V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_NONE = 0,
+	V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_UBWC = 1,
+	V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_TP10_UBWC = 2
+};
+
+
 #define V4L2_CID_MPEG_VIDC_VIDEO_IFRAME_SIZE_TYPE \
 		(V4L2_CID_MPEG_MSM_VIDC_BASE + 100)
 enum v4l2_mpeg_vidc_video_venc_iframesize_type {

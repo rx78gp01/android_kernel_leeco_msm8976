@@ -119,16 +119,27 @@ static inline bool is_realtime_session(struct msm_vidc_inst *inst)
 	return !!(inst->flags & VIDC_REALTIME);
 }
 
-int msm_comm_g_ctrl(struct msm_vidc_inst *inst, int id)
+int msm_comm_g_ctrl(struct msm_vidc_inst *inst, struct v4l2_control *ctrl)
+{
+	return v4l2_g_ctrl(&inst->ctrl_handler, ctrl);
+}
+
+int msm_comm_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_control *ctrl)
+{
+	return v4l2_s_ctrl(NULL, &inst->ctrl_handler, ctrl);
+}
+
+int msm_comm_g_ctrl_for_id(struct msm_vidc_inst *inst, int id)
 {
 	int rc = 0;
 	struct v4l2_control ctrl = {
 		.id = id,
 	};
 
-	rc = v4l2_g_ctrl(&inst->ctrl_handler, &ctrl);
+	rc = msm_comm_g_ctrl(inst, &ctrl);
 	return rc ?: ctrl.value;
 }
+
 enum multi_stream msm_comm_get_stream_output_mode(struct msm_vidc_inst *inst)
 {
 	if (inst->session_type == MSM_VIDC_DECODER) {
@@ -4614,6 +4625,14 @@ int msm_comm_set_color_format(struct msm_vidc_inst *inst,
 	case V4L2_PIX_FMT_NV21:
 		dprintk(VIDC_DBG, "set color format: nv21\n");
 		hal_fmt.format = HAL_COLOR_FORMAT_NV21;
+		break;
+	case V4L2_PIX_FMT_NV12_UBWC:
+		dprintk(VIDC_DBG, "set color format: nv12 ubwc\n");
+		hal_fmt.format = HAL_COLOR_FORMAT_NV12_UBWC;
+		break;
+	case V4L2_PIX_FMT_NV12_TP10_UBWC:
+		dprintk(VIDC_DBG, "set color format: nv12 tp10 ubwc\n");
+		hal_fmt.format = HAL_COLOR_FORMAT_NV12_TP10_UBWC;
 		break;
 	default:
 		dprintk(VIDC_ERR, "%s: unknown color formar: %#x\n",

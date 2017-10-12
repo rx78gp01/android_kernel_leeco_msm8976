@@ -3,6 +3,9 @@
 
 #include <linux/types.h>
 
+#define MSM_VIDC_HAL_INTERLACE_COLOR_FORMAT_NV12	0x2
+#define MSM_VIDC_HAL_INTERLACE_COLOR_FORMAT_NV12_UBWC	0x8002
+
 struct msm_vidc_extradata_header {
 	unsigned int size;
 	unsigned int:32; /** Keeping binary compatibility */
@@ -283,6 +286,13 @@ enum msm_vidc_h264_transfer_chars_values {
 	MSM_VIDC_TRANSFER_BT_2020_10 = 14,
 	MSM_VIDC_TRANSFER_BT_2020_12 = 15,
 };
+
+enum msm_vidc_pixel_depth {
+	MSM_VIDC_BIT_DEPTH_8,
+	MSM_VIDC_BIT_DEPTH_10,
+	MSM_VIDC_BIT_DEPTH_UNSUPPORTED = 0XFFFFFFFF,
+};
+
 enum msm_vidc_video_format {
 	MSM_VIDC_COMPONENT,
 	MSM_VIDC_PAL,
@@ -297,4 +307,7 @@ enum msm_vidc_color_desc_flag {
 	MSM_VIDC_COLOR_DESC_NOT_PRESENT,
 	MSM_VIDC_COLOR_DESC_PRESENT,
 };
+/*enum msm_vidc_pic_struct */
+#define MSM_VIDC_PIC_STRUCT_MAYBE_INTERLACED 0x0
+#define MSM_VIDC_PIC_STRUCT_PROGRESSIVE 0x1
 #endif
