@@ -115,12 +115,6 @@ static const char *const mpeg_vidc_video_h264_mvc_layout[] = {
 	"Frame packing arrangement top-bottom",
 };
 
-static const char *const mpeg_vidc_video_dpb_color_format[] = {
-	"DPB Color Format None",
-	"DPB Color Format UBWC",
-	"DPB Color Format UBWC TP10",
-};
-
 static struct msm_vidc_ctrl msm_vdec_ctrls[] = {
 	{
 		.id = V4L2_CID_MPEG_VIDC_VIDEO_STREAM_FORMAT,
@@ -545,20 +539,6 @@ static struct msm_vidc_ctrl msm_vdec_ctrls[] = {
 		.qmenu = NULL,
 	},
 	{
-		.id = V4L2_CID_MPEG_VIDC_VIDEO_DPB_COLOR_FORMAT,
-		.name = "Video decoder dpb color format",
-		.type = V4L2_CTRL_TYPE_MENU,
-		.minimum = V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_NONE,
-		.maximum = V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_TP10_UBWC,
-		.default_value = V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_NONE,
-		.menu_skip_mask = ~(
-			(1 << V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_NONE) |
-			(1 << V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_UBWC) |
-			(1 << V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_TP10_UBWC)
-			),
-		.qmenu = mpeg_vidc_video_dpb_color_format,
-	},
-	{
 		.id = V4L2_CID_MPEG_VIDC_VIDEO_PRIORITY,
 		.name = "Session Priority",
 		.type = V4L2_CTRL_TYPE_INTEGER,
@@ -591,11 +571,6 @@ static u32 get_frame_size_nv12(int plane,
 					u32 height, u32 width)
 {
 	return VENUS_BUFFER_SIZE(COLOR_FMT_NV12, width, height);
-}
-
-static u32 get_frame_size_nv12_ubwc(int plane, u32 height, u32 width)
-{
-	return VENUS_BUFFER_SIZE(COLOR_FMT_NV12_UBWC, width, height);
 }
 
 static u32 get_frame_size_compressed(int plane,
@@ -679,14 +654,6 @@ struct msm_vidc_format vdec_formats[] = {
 		.fourcc = V4L2_PIX_FMT_NV12,
 		.num_planes = 2,
 		.get_frame_size = get_frame_size_nv12,
-		.type = CAPTURE_PORT,
-	},
-	{
-		.name = "UBWC YCbCr Semiplanar 4:2:0",
-		.description = "UBWC Y/CbCr 4:2:0",
-		.fourcc = V4L2_PIX_FMT_NV12_UBWC,
-		.num_planes = 2,
-		.get_frame_size = get_frame_size_nv12_ubwc,
 		.type = CAPTURE_PORT,
 	},
 	{
@@ -1077,7 +1044,7 @@ int msm_vdec_g_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 	f->fmt.pix_mp.pixelformat = fmt->fourcc;
 	f->fmt.pix_mp.num_planes = fmt->num_planes;
 	if (inst->in_reconfig) {
-		bool ds_enabled = msm_comm_g_ctrl_for_id(inst,
+		bool ds_enabled = msm_comm_g_ctrl(inst,
 			V4L2_CID_MPEG_VIDC_VIDEO_KEEP_ASPECT_RATIO);
 
 		/*
@@ -1131,20 +1098,6 @@ int msm_vdec_g_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 			case V4L2_PIX_FMT_NV12:
 				call_hfi_op(hdev, get_stride_scanline,
 						COLOR_FMT_NV12,
-						inst->prop.width[CAPTURE_PORT],
-						inst->prop.height[CAPTURE_PORT],
-						&stride, &scanlines);
-				break;
-			case V4L2_PIX_FMT_NV12_UBWC:
-				call_hfi_op(hdev, get_stride_scanline,
-						COLOR_FMT_NV12_UBWC,
-						inst->prop.width[CAPTURE_PORT],
-						inst->prop.height[CAPTURE_PORT],
-						&stride, &scanlines);
-				break;
-			case V4L2_PIX_FMT_NV12_TP10_UBWC:
-				call_hfi_op(hdev, get_stride_scanline,
-						COLOR_FMT_NV12_BPP10_UBWC,
 						inst->prop.width[CAPTURE_PORT],
 						inst->prop.height[CAPTURE_PORT],
 						&stride, &scanlines);
@@ -2626,89 +2579,6 @@ static int try_set_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 	return rc;
 }
 
-static int try_set_ext_ctrl(struct msm_vidc_inst *inst,
-	struct v4l2_ext_controls *ctrl)
-{
-	int rc = 0, i = 0, fourcc = 0;
-	struct v4l2_ext_control *ext_control;
-	struct v4l2_control control;
-
-	if (!inst || !inst->core || !ctrl) {
-		dprintk(VIDC_ERR,
-			"%s invalid parameters\n", __func__);
-		return -EINVAL;
-	}
-
-	ext_control = ctrl->controls;
-	control.id =
-		V4L2_CID_MPEG_VIDC_VIDEO_STREAM_OUTPUT_MODE;
-
-	for (i = 0; i < ctrl->count; i++) {
-		switch (ext_control[i].id) {
-		case V4L2_CID_MPEG_VIDC_VIDEO_STREAM_OUTPUT_MODE:
-			control.value = ext_control[i].value;
-
-			rc = msm_comm_s_ctrl(inst, &control);
-			if (rc)
-				dprintk(VIDC_ERR,
-					"%s Failed setting stream output mode : %d\n",
-					__func__, rc);
-			break;
-		case V4L2_CID_MPEG_VIDC_VIDEO_DPB_COLOR_FORMAT:
-			switch (ext_control[i].value) {
-			case V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_NONE:
-				if (!msm_comm_g_ctrl_for_id(inst, control.id)) {
-					rc = msm_comm_release_output_buffers(
-						inst);
-					if (rc)
-						dprintk(VIDC_ERR,
-							"%s Release output buffers failed\n",
-							__func__);
-				}
-				break;
-			case V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_UBWC:
-			case V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_TP10_UBWC:
-				if (ext_control[i].value ==
-					V4L2_MPEG_VIDC_VIDEO_DPB_COLOR_FMT_UBWC)
-					fourcc = V4L2_PIX_FMT_NV12_UBWC;
-				else
-					fourcc = V4L2_PIX_FMT_NV12_TP10_UBWC;
-				if (msm_comm_g_ctrl_for_id(inst, control.id)) {
-					rc = msm_comm_set_color_format(inst,
-						HAL_BUFFER_OUTPUT, fourcc);
-					if (rc) {
-						dprintk(VIDC_ERR,
-							"%s Failed setting output color format : %d\n",
-							__func__, rc);
-						break;
-					}
-					rc = msm_comm_try_get_bufreqs(inst);
-					if (rc)
-						dprintk(VIDC_ERR,
-							"%s Failed to get buffer requirements : %d\n",
-							__func__, rc);
-				}
-				break;
-			default:
-				dprintk(VIDC_ERR,
-					"%s Unsupported output color format\n",
-					__func__);
-				rc = -ENOTSUPP;
-				break;
-			}
-			break;
-		default:
-			dprintk(VIDC_ERR
-				, "%s Unsupported set control %d",
-				__func__, ext_control[i].id);
-			rc = -ENOTSUPP;
-			break;
-		}
-	}
-
-	return rc;
-}
-
 static int msm_vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	int rc = 0, c = 0;
@@ -2815,23 +2685,6 @@ static struct v4l2_ctrl **get_super_cluster(struct msm_vidc_inst *inst,
 
 	*size = sz;
 	return cluster;
-}
-
-int msm_vdec_s_ext_ctrl(struct msm_vidc_inst *inst,
-	struct v4l2_ext_controls *ctrl)
-{
-	int rc = 0;
-	if (ctrl->ctrl_class != V4L2_CTRL_CLASS_MPEG) {
-		dprintk(VIDC_ERR, "Invalid Class set for extended control\n");
-		return -EINVAL;
-	}
-
-	rc = try_set_ext_ctrl(inst, ctrl);
-	if (rc) {
-		dprintk(VIDC_ERR, "Error setting extended control\n");
-		return rc;
-	}
-	return rc;
 }
 
 int msm_vdec_ctrl_init(struct msm_vidc_inst *inst)
