@@ -83,7 +83,7 @@ static ssize_t power_show(struct kobject *kobj,
 	return  len;
 }
 static struct kobj_attribute maxq656_attrs[] = {
-	__ATTR(enable, (S_IRUGO | S_IWUSR | S_IWGRP),
+	__ATTR(enable, (S_IRUGO | S_IWUSR | S_IWGRP | S_IWOTH),
 					power_show,
 					power_store),
 };
